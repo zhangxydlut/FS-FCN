@@ -12,7 +12,7 @@ from dataset_mask_train import Dataset as Dataset_train
 from dataset_mask_val import Dataset as Dataset_val
 import os
 import torch
-from one_shot_network import Res_Deeplab
+from lib.model.fsfcn import build_model
 import torch.nn as nn
 import numpy as np
 
@@ -97,27 +97,16 @@ cudnn.enabled = True
 
 
 # Create network.
-model = Res_Deeplab(num_classes=num_class)
-#load resnet-50 preatrained parameter
-model = load_resnet50_param(model, stop_layer='layer4')
-model=nn.DataParallel(model,[0,1])
+model = build_model()
+model=nn.DataParallel(model,[0, 1])
 
 # disable the  gradients of not optomized layers
-turn_off(model)
+# turn_off(model)
 
 
 
 checkpoint_dir = 'checkpoint/fo=%d/'% options.fold
 check_dir(checkpoint_dir)
-
-
-
-
-
-
-
-
-# loading data
 
 # trainset
 dataset = Dataset_train(data_dir=data_dir, fold=options.fold, input_size=input_size, normalize_mean=IMG_MEAN,
@@ -133,25 +122,12 @@ valloader = data.DataLoader(valset, batch_size=options.bs_val, shuffle=False, nu
 
 save_pred_every =len(trainloader)
 
-
-
-
-optimizer = optim.SGD([{'params': get_10x_lr_params(model), 'lr': 10 * learning_rate}],
+optimizer = optim.SGD([{'params': model.parameters(), 'lr': learning_rate}],
                           lr=learning_rate, momentum=momentum, weight_decay=weight_decay)
 
-
-
-
-loss_list = []#track training loss
-iou_list = []#track validaiton iou
+loss_list = [] #track training loss
+iou_list = [] #track validaiton iou
 highest_iou = 0
-
-
-
-
-
-
-
 
 model.cuda()
 tempory_loss = 0  # accumulated loss
@@ -178,7 +154,7 @@ for epoch in range(0,num_epoch):
 
         optimizer.zero_grad()
 
-        pred=model(query_rgb, support_rgb, support_mask,history_mask)
+        pred=model(query_rgb, support_rgb, support_mask)
         pred_softmax=F.softmax(pred,dim=1).data.cpu()
 
         #update history mask
@@ -283,6 +259,5 @@ for epoch in range(0,num_epoch):
     print('best epoch:%d ,iout:%.4f' % (best_epoch, highest_iou))
     print('This epoch taks:', epoch_time, 'second')
     print('still need hour:%.4f' % ((num_epoch - epoch) * epoch_time / 3600))
-
 
 

@@ -103,32 +103,6 @@ class Bottleneck(nn.Module):
 
 
 
-def parse_dynamic_params(params, channels, weight_nums, bias_nums):
-    assert params.dim() == 2
-    assert len(weight_nums) == len(bias_nums)
-    assert params.size(1) == sum(weight_nums) + sum(bias_nums)
-
-    num_insts = params.size(0)
-    num_layers = len(weight_nums)
-
-    params_splits = list(torch.split_with_sizes(
-        params, weight_nums + bias_nums, dim=1
-    ))
-
-    weight_splits = params_splits[:num_layers]
-    bias_splits = params_splits[num_layers:]
-
-    for l in range(num_layers):
-        if l < num_layers - 1:
-            # out_channels x in_channels x 1 x 1
-            weight_splits[l] = weight_splits[l].reshape(num_insts, channels, -1, 1, 1)
-            bias_splits[l] = bias_splits[l].reshape(num_insts, channels)
-        else:
-            # out_channels x in_channels x 1 x 1
-            weight_splits[l] = weight_splits[l].reshape(num_insts, 1, -1, 1, 1)
-            bias_splits[l] = bias_splits[l].reshape(num_insts)
-
-    return weight_splits, bias_splits, num_insts
 
 
 
@@ -158,35 +132,6 @@ class ResNet(nn.Module):
                                     nn.ReLU(),
                                     nn.Dropout2d(p=0.5))
 
-        # CondInst style dynamic conv FCN
-        num_conv = 4
-        self.dim_cond = 153
-        self.dim_dynamic_conv = 8
-        self.weight_nums = [64, 64, 8]
-        self.bais_nums = [8, 8, 1]
-
-        towers = [
-            nn.Sequential(
-                nn.Conv2d(256, 256, 3, stride=1, padding=1),
-                nn.BatchNorm2d(256),
-                nn.ReLU()) for _ in range(num_conv)]
-
-        self.controller_generator = nn.Sequential(
-            *towers,
-            nn.Conv2d(256, self.dim_cond, kernel_size=3, stride=1, padding=1)
-        )
-
-
-        query_towers = [
-            nn.Sequential(
-                nn.Conv2d(256, 256, 3, stride=1, padding=1),
-                nn.BatchNorm2d(256),
-                nn.ReLU()) for _ in range(num_conv)]
-
-        self.query_tower_generator = nn.Sequential(
-            *query_towers,
-            nn.Conv2d(256, self.dim_dynamic_conv, kernel_size=3, stride=1, padding=1)
-        )
 
 
         self.layer55 = nn.Sequential(
@@ -293,25 +238,6 @@ class ResNet(nn.Module):
             layers.append(block(self.inplanes, planes, dilation=dilation))
 
         return nn.Sequential(*layers)
-
-    def dynamic_conv(self, features, weights, biases, num_insts):
-        assert features.dim() == 4
-        feat = []
-        for i in range(num_insts):
-            weights_i = weights[i]
-            biases_i = biases[i]
-            n_layers = len(weights_i)
-            x = features[i][None]
-            for i, (w, b) in enumerate(zip(weights_i, biases_i)):
-                x = F.conv2d(
-                    x, w, bias=b,
-                    stride=1, padding=0,
-                )
-                if i < n_layers - 1:
-                    x = F.relu(x)
-            feat.append(x)
-        return torch.cat(feat, dim=0)
-
     def _make_pred_layer(self,block, dilation_series, padding_series,num_classes):
         return block(dilation_series,padding_series,num_classes)
 
@@ -351,36 +277,24 @@ class ResNet(nn.Module):
 
 
         support_mask = F.interpolate(support_mask, support_rgb.shape[-2:], mode='bilinear',align_corners=True)
-
         h,w=support_rgb.shape[-2:][0],support_rgb.shape[-2:][1]
+
+
         area = F.avg_pool2d(support_mask, support_rgb.shape[-2:]) * h * w + 0.0005
-
-        # TODO: replace with controller and fcn
         z = support_mask * support_rgb
-
-        z = self.controller_generator(z)
-        z_reduced = F.avg_pool2d(z, z.shape[-2:]).reshape(z.shape[0], -1)
-        weight_splits, bias_splits, num_inst = parse_dynamic_params(
-            z_reduced, 8, self.weight_nums, self.bais_nums)
-
-        query_tower = self.query_tower_generator(query_rgb)
-
-        out = self.dynamic_conv(query_tower, weight_splits, bias_splits, num_inst)
+        z = F.avg_pool2d(input=z,
+                         kernel_size=support_rgb.shape[-2:]) * h * w / area
+        z = z.expand(-1, -1, feature_size[0], feature_size[1])  # tile for cat
 
 
-        # z = F.avg_pool2d(input=z,
-        #                  kernel_size=support_rgb.shape[-2:]) * h * w / area
-        # z = z.expand(-1, -1, feature_size[0], feature_size[1])  # tile for cat
+        history_mask=F.interpolate(history_mask,feature_size,mode='bilinear',align_corners=True)
 
-
-        # history_mask=F.interpolate(history_mask,feature_size,mode='bilinear',align_corners=True)
-        #
-        # out=torch.cat([query_rgb,z],dim=1)
-        # out = self.layer55(out)
-        # out_plus_history=torch.cat([out,history_mask],dim=1)
-        # out = out + self.residule1(out_plus_history)
-        # out = out + self.residule2(out)
-        # out = out + self.residule3(out)
+        out=torch.cat([query_rgb,z],dim=1)
+        out = self.layer55(out)
+        out_plus_history=torch.cat([out,history_mask],dim=1)
+        out = out + self.residule1(out_plus_history)
+        out = out + self.residule2(out)
+        out = out + self.residule3(out)
 
 
 
@@ -437,7 +351,6 @@ if __name__ == '__main__':
     history_mask=(torch.zeros(1,2,50,50)).cuda()
 
     pred = (model(query_rgb,support_rgb,support_mask,history_mask))
-
 
 
 

@@ -46,32 +46,14 @@ def turn_off(model):
     optim_or_not(model.module.layer3, False)
 
 
-
-
 def get_10x_lr_params(model):
-    """
-    get layers for optimization
-    """
-
+    """ get layers for optimization """
     b = []
     b.append(model.module.layer5.parameters())
-    b.append(model.module.layer55.parameters())
-    b.append(model.module.layer6_0.parameters())
-    b.append(model.module.layer6_1.parameters())
-    b.append(model.module.layer6_2.parameters())
-    b.append(model.module.layer6_3.parameters())
-    b.append(model.module.layer6_4.parameters())
-    b.append(model.module.layer7.parameters())
-    b.append(model.module.layer9.parameters())
-    b.append(model.module.residule1.parameters())
-    b.append(model.module.residule2.parameters())
-    b.append(model.module.residule3.parameters())
 
     for j in range(len(b)):
         for i in b[j]:
             yield i
-
-
 
 
 def loss_calc_v1(pred, label, gpu):
