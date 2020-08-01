@@ -1,26 +1,6 @@
-import torchvision
 import os
 import torch
 from pylab import plt
-
-
-def load_resnet50_param(model, stop_layer='layer4'):
-    resnet50 = torchvision.models.resnet50(pretrained=True)
-    saved_state_dict = resnet50.state_dict()
-    new_params = model.state_dict().copy()
-
-    for i in saved_state_dict:  # copy params from resnet50,except layers after stop_layer
-
-        i_parts = i.split('.')
-
-        if not i_parts[0] == stop_layer:
-
-            new_params['.'.join(i_parts)] = saved_state_dict[i]
-        else:
-            break
-    model.load_state_dict(new_params)
-    model.train()
-    return model
 
 
 def check_dir(checkpoint_dir):#create a dir if dir not exists
@@ -29,40 +9,12 @@ def check_dir(checkpoint_dir):#create a dir if dir not exists
         os.makedirs(os.path.join(checkpoint_dir,'pred_img'))
 
 
-
-
-def optim_or_not(model, yes):
-    for param in model.parameters():
-        if yes:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
-
-
-def turn_off(model):
-    optim_or_not(model.module.conv1, False)
-    optim_or_not(model.module.layer1, False)
-    optim_or_not(model.module.layer2, False)
-    optim_or_not(model.module.layer3, False)
-
-
-def get_10x_lr_params(model):
-    """ get layers for optimization """
-    b = []
-    b.append(model.module.layer5.parameters())
-
-    for j in range(len(b)):
-        for i in b[j]:
-            yield i
-
-
 def loss_calc_v1(pred, label, gpu):
 
     label = label.long()
     criterion = torch.nn.CrossEntropyLoss(ignore_index=255).cuda(gpu)
 
     return criterion(pred, label)
-
 
 
 def plot_loss(checkpoint_dir,loss_list,save_pred_every):
@@ -87,7 +39,6 @@ def plot_iou(checkpoint_dir,iou_list):
     plt.grid()
     plt.savefig(os.path.join(checkpoint_dir,'iou_fig.pdf'))
     plt.close()
-
 
 
 def get_iou_v1(query_mask,pred_label,mode='foreground'):#pytorch 1.0 version

@@ -1,5 +1,3 @@
-
-
 import random
 import os
 import torchvision
@@ -12,12 +10,10 @@ from torch.utils.data import DataLoader
 import time
 
 
-
 class Dataset(object):
 
-
-    def __init__(self, data_dir, fold, input_size=[321, 321] , normalize_mean=[0, 0, 0],
-                 normalize_std=[1, 1, 1],prob=0.7):
+    def __init__(self, data_dir, fold, input_size=[321, 321], normalize_mean=[0, 0, 0],
+                 normalize_std=[1, 1, 1], prob=0.7):
         # -------------------load data list,[class,video_name]-------------------
         self.data_dir = data_dir
         self.new_exist_class_list = self.get_new_exist_class_dict(fold=fold)
@@ -25,16 +21,16 @@ class Dataset(object):
         self.binary_pair_list = self.get_binary_pair_list()
         self.input_size = input_size
         self.history_mask_list = [None] * self.__len__()
-        self.prob=prob#probability of sampling history masks=0
+        self.prob = prob  # probability of sampling history masks=0
 
     def get_new_exist_class_dict(self, fold):
         new_exist_class_list = []
 
-        fold_list=[0,1,2,3]
+        fold_list = [0, 1, 2, 3]
         fold_list.remove(fold)
         for fold in fold_list:
 
-            f = open(os.path.join(self.data_dir, 'Binary_map_aug', 'train', 'split%1d_train.txt'%fold))
+            f = open(os.path.join(self.data_dir, 'Binary_map_aug', 'train', 'split%1d_train.txt' % fold))
             while True:
                 item = f.readline()
                 if item == '':
@@ -83,7 +79,7 @@ class Dataset(object):
 
         input_size = self.input_size[0]
         # random scale and crop for support
-        scaled_size = int(random.uniform(1,1.5)*input_size)
+        scaled_size = int(random.uniform(1, 1.5) * input_size)
         scale_transform_mask = torchvision.transforms.Resize([scaled_size, scaled_size], interpolation=Image.NEAREST)
         scale_transform_rgb = torchvision.transforms.Resize([scaled_size, scaled_size], interpolation=Image.BILINEAR)
         flip_flag = random.random()
@@ -106,15 +102,11 @@ class Dataset(object):
         support_rgb = support_rgb[:, margin_h:margin_h + input_size, margin_w:margin_w + input_size]
         support_mask = support_mask[:, margin_h:margin_h + input_size, margin_w:margin_w + input_size]
 
-
-
-
-
         # random scale and crop for query
         scaled_size = input_size  # random.randint(323, 350)
         scale_transform_mask = torchvision.transforms.Resize([scaled_size, scaled_size], interpolation=Image.NEAREST)
         scale_transform_rgb = torchvision.transforms.Resize([scaled_size, scaled_size], interpolation=Image.BILINEAR)
-        flip_flag = 0#random.random()
+        flip_flag = 0  # random.random()
 
         query_rgb = self.normalize(
             self.ToTensor(
@@ -136,20 +128,17 @@ class Dataset(object):
         query_rgb = query_rgb[:, margin_h:margin_h + input_size, margin_w:margin_w + input_size]
         query_mask = query_mask[:, margin_h:margin_h + input_size, margin_w:margin_w + input_size]
 
-
-
         if self.history_mask_list[index] is None:
 
-            history_mask=torch.zeros(2,41,41).fill_(0.0)
+            history_mask = torch.zeros(2, 41, 41).fill_(0.0)
 
         else:
-            if random.random()>self.prob:
-                history_mask=self.history_mask_list[index]
+            if random.random() > self.prob:
+                history_mask = self.history_mask_list[index]
             else:
                 history_mask = torch.zeros(2, 41, 41).fill_(0.0)
 
-
-        return query_rgb, query_mask, support_rgb, support_mask,history_mask,sample_class,index
+        return query_rgb, query_mask, support_rgb, support_mask, history_mask, sample_class, index
 
     def flip(self, flag, img):
         if flag > 0.5:
@@ -159,5 +148,3 @@ class Dataset(object):
 
     def __len__(self):
         return len(self.new_exist_class_list)
-
-

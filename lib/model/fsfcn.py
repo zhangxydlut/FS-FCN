@@ -190,16 +190,12 @@ class FSFCN(nn.Module):
         new_params = model.state_dict().copy()
 
         for i in saved_state_dict:  # copy params from resnet50,except layers after stop_layer
-
             i_parts = i.split('.')
-
             if not i_parts[0] == stop_layer:
-
                 new_params['.'.join(i_parts)] = saved_state_dict[i]
             else:
                 break
         model.load_state_dict(new_params)
-        model.train()
         return model
 
     def build_dynamid_mask_head(self):
@@ -254,7 +250,7 @@ class FSFCN(nn.Module):
 
     def forward(self, query_rgb, support_rgb, support_mask):
         # important: do not optimize the RESNET backbone
-        query_feat = self.backbone(query_rgb).detach()
+        query_feat = self.backbone(query_rgb).detach()  # freeze backbone
         support_feat = self.backbone(support_rgb).detach()
 
         # prepare dynamic kernel
