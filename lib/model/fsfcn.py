@@ -93,7 +93,6 @@ class Bottleneck(nn.Module):
         return out
 
 
-
 def parse_dynamic_params(params, channels, weight_nums, bias_nums):
     assert params.dim() == 2
     assert len(weight_nums) == len(bias_nums)
@@ -103,8 +102,7 @@ def parse_dynamic_params(params, channels, weight_nums, bias_nums):
     num_layers = len(weight_nums)
 
     params_splits = list(torch.split_with_sizes(
-        params, weight_nums + bias_nums, dim=1
-    ))
+        params, weight_nums + bias_nums, dim=1))
 
     weight_splits = params_splits[:num_layers]
     bias_splits = params_splits[num_layers:]
@@ -256,8 +254,8 @@ class FSFCN(nn.Module):
 
     def forward(self, query_rgb, support_rgb, support_mask):
         # important: do not optimize the RESNET backbone
-        query_feat = self.backbone(query_rgb)
-        support_feat = self.backbone(support_rgb)
+        query_feat = self.backbone(query_rgb).detach()
+        support_feat = self.backbone(support_rgb).detach()
 
         # prepare dynamic kernel
         support_mask = F.interpolate(support_mask, support_feat.shape[-2:], mode='bilinear',align_corners=True)
